@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 import { Agent, AgentInsert, ChatThread, ChatThreadInsert, ApiKey, ApiKeyInsert } from "../shared/schema";
 import { v4 as uuidv4 } from 'uuid';
+import { PostgresStorage } from './storage.postgres';
+=======
+import { Agent, AgentInsert, ChatThread, ChatThreadInsert, ApiKey, ApiKeyInsert, agents, chatThreads, apiKeys } from "../shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
+>>>>>>> 94782dc033021c55a22e17a33dff9301a7f9d7e5
 
 export interface IStorage {
   // Agent operations
@@ -22,122 +29,116 @@ export interface IStorage {
   updateApiKey(id: string, apiKey: Partial<ApiKeyInsert>): Promise<ApiKey | null>;
 }
 
-export class MemStorage implements IStorage {
-  private agents: Map<string, Agent> = new Map();
-  private chatThreads: Map<string, ChatThread> = new Map();
-  private apiKeys: Map<string, ApiKey> = new Map();
-
+export class DatabaseStorage implements IStorage {
   async createAgent(agent: AgentInsert): Promise<Agent> {
-    const id = uuidv4();
-    const newAgent: Agent = {
-      ...agent,
-      id,
-      lastUpdated: new Date().toISOString(),
-    };
-    this.agents.set(id, newAgent);
+    const [newAgent] = await db
+      .insert(agents)
+      .values(agent)
+      .returning();
     return newAgent;
   }
 
   async getAgent(id: string): Promise<Agent | null> {
-    return this.agents.get(id) || null;
+    const [agent] = await db
+      .select()
+      .from(agents)
+      .where(eq(agents.id, id));
+    return agent || null;
   }
 
   async getAgentBySlug(slug: string): Promise<Agent | null> {
-    for (const agent of this.agents.values()) {
-      if (agent.slug === slug) {
-        return agent;
-      }
-    }
-    return null;
+    const [agent] = await db
+      .select()
+      .from(agents)
+      .where(eq(agents.slug, slug));
+    return agent || null;
   }
 
   async getAllAgents(): Promise<Agent[]> {
-    return Array.from(this.agents.values());
+    return await db.select().from(agents);
   }
 
   async updateAgent(id: string, agent: Partial<AgentInsert>): Promise<Agent | null> {
-    const existing = this.agents.get(id);
-    if (!existing) return null;
-    
-    const updated: Agent = {
-      ...existing,
-      ...agent,
-      lastUpdated: new Date().toISOString(),
-    };
-    this.agents.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(agents)
+      .set(agent)
+      .where(eq(agents.id, id))
+      .returning();
+    return updated || null;
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    return this.agents.delete(id);
+    const result = await db
+      .delete(agents)
+      .where(eq(agents.id, id))
+      .returning();
+    return result.length > 0;
   }
 
   async createChatThread(thread: ChatThreadInsert): Promise<ChatThread> {
-    const id = uuidv4();
-    const now = new Date().toISOString();
-    const newThread: ChatThread = {
-      ...thread,
-      id,
-      createdAt: now,
-      lastMessageAt: now,
-    };
-    this.chatThreads.set(id, newThread);
+    const [newThread] = await db
+      .insert(chatThreads)
+      .values(thread)
+      .returning();
     return newThread;
   }
 
   async getChatThread(id: string): Promise<ChatThread | null> {
-    return this.chatThreads.get(id) || null;
+    const [thread] = await db
+      .select()
+      .from(chatThreads)
+      .where(eq(chatThreads.id, id));
+    return thread || null;
   }
 
   async getChatThreadBySession(agentSlug: string, sessionId: string): Promise<ChatThread | null> {
-    for (const thread of this.chatThreads.values()) {
-      if (thread.agentSlug === agentSlug && thread.sessionId === sessionId) {
-        return thread;
-      }
-    }
-    return null;
+    const [thread] = await db
+      .select()
+      .from(chatThreads)
+      .where(and(
+        eq(chatThreads.agentSlug, agentSlug),
+        eq(chatThreads.sessionId, sessionId)
+      ));
+    return thread || null;
   }
 
   async updateChatThread(id: string, thread: Partial<ChatThread>): Promise<ChatThread | null> {
-    const existing = this.chatThreads.get(id);
-    if (!existing) return null;
-    
-    const updated: ChatThread = {
-      ...existing,
-      ...thread,
-      lastMessageAt: new Date().toISOString(),
-    };
-    this.chatThreads.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(chatThreads)
+      .set(thread)
+      .where(eq(chatThreads.id, id))
+      .returning();
+    return updated || null;
   }
 
   async setApiKey(apiKey: ApiKeyInsert): Promise<ApiKey> {
-    const id = uuidv4();
-    const newApiKey: ApiKey = {
-      ...apiKey,
-      id,
-    };
-    this.apiKeys.set(id, newApiKey);
+    // Delete existing keys first
+    await db.delete(apiKeys);
+    
+    const [newApiKey] = await db
+      .insert(apiKeys)
+      .values(apiKey)
+      .returning();
     return newApiKey;
   }
 
   async getApiKey(): Promise<ApiKey | null> {
-    const apiKeys = Array.from(this.apiKeys.values());
-    return apiKeys.length > 0 ? apiKeys[0] : null;
+    const [apiKey] = await db.select().from(apiKeys).limit(1);
+    return apiKey || null;
   }
 
   async updateApiKey(id: string, apiKey: Partial<ApiKeyInsert>): Promise<ApiKey | null> {
-    const existing = this.apiKeys.get(id);
-    if (!existing) return null;
-    
-    const updated: ApiKey = {
-      ...existing,
-      ...apiKey,
-      lastValidated: new Date().toISOString(),
-    };
-    this.apiKeys.set(id, updated);
-    return updated;
+    const [updated] = await db
+      .update(apiKeys)
+      .set(apiKey)
+      .where(eq(apiKeys.id, id))
+      .returning();
+    return updated || null;
   }
 }
 
-export const storage = new MemStorage();
+<<<<<<< HEAD
+export const storage = new PostgresStorage();
+=======
+export const storage = new DatabaseStorage();
+>>>>>>> 94782dc033021c55a22e17a33dff9301a7f9d7e5

@@ -1,0 +1,6 @@
+{
+  "schema": "./server/db/schema.ts",
+  "out": "./server/db/migrations",
+  "dialect": "postgresql",
+  "url": "postgresql://chatbot-moodle_owner:npg_Gzubjm2PeWI6@ep-rapid-flower-a8gxfgxo-pooler.eastus2.azure.neon.tech/chatbot-moodle?sslmode=require&channel_binding=require"
+} 

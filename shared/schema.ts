@@ -1,26 +1,71 @@
 import { z } from "zod";
+import { pgTable, text, boolean, timestamp, jsonb, varchar, uuid } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
-// Agent Schema
-export const agentSchema = z.object({
-  id: z.string(),
-  name: z.string(),
+// Agents Table
+export const agents = pgTable("agents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  model: varchar("model", { length: 50 }).default("gpt-4o").notNull(),
+  openaiAssistantId: varchar("openai_assistant_id", { length: 255 }),
+  slug: varchar("slug", { length: 100 }).unique().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+  files: jsonb("files").$type<string[]>().default([]).notNull(),
+  instructions: text("instructions"),
+});
+
+// Chat Threads Table
+export const chatThreads = pgTable("chat_threads", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  agentSlug: varchar("agent_slug", { length: 100 }).notNull(),
+  sessionId: varchar("session_id", { length: 255 }).notNull(),
+  openaiThreadId: varchar("openai_thread_id", { length: 255 }),
+  messages: jsonb("messages").$type<Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    timestamp: string;
+    audioUrl?: string;
+  }>>().default([]).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+});
+
+// API Keys Table
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  openaiApiKey: text("openai_api_key").notNull(),
+  isValid: boolean("is_valid").default(false).notNull(),
+  lastValidated: timestamp("last_validated"),
+});
+
+// Relations
+export const agentsRelations = relations(agents, ({ many }) => ({
+  chatThreads: many(chatThreads),
+}));
+
+export const chatThreadsRelations = relations(chatThreads, ({ one }) => ({
+  agent: one(agents, {
+    fields: [chatThreads.agentSlug],
+    references: [agents.slug],
+  }),
+}));
+
+// Zod Schemas for API validation
+export const agentInsertSchema = z.object({
+  name: z.string().min(1),
   description: z.string().optional(),
   model: z.string().default("gpt-4o"),
   openaiAssistantId: z.string().optional(),
-  slug: z.string(),
+  slug: z.string().min(1),
   isActive: z.boolean().default(true),
-  lastUpdated: z.string(),
   files: z.array(z.string()).default([]),
   instructions: z.string().optional(),
 });
 
-export const agentInsertSchema = agentSchema.omit({ id: true, lastUpdated: true });
-export type Agent = z.infer<typeof agentSchema>;
-export type AgentInsert = z.infer<typeof agentInsertSchema>;
-
-// Chat Thread Schema
-export const chatThreadSchema = z.object({
-  id: z.string(),
+export const chatThreadInsertSchema = z.object({
   agentSlug: z.string(),
   sessionId: z.string(),
   openaiThreadId: z.string().optional(),
@@ -31,24 +76,19 @@ export const chatThreadSchema = z.object({
     timestamp: z.string(),
     audioUrl: z.string().optional(),
   })).default([]),
-  createdAt: z.string(),
-  lastMessageAt: z.string(),
 });
 
-export const chatThreadInsertSchema = chatThreadSchema.omit({ id: true, createdAt: true, lastMessageAt: true });
-export type ChatThread = z.infer<typeof chatThreadSchema>;
-export type ChatThreadInsert = z.infer<typeof chatThreadInsertSchema>;
-
-// API Key Schema
-export const apiKeySchema = z.object({
-  id: z.string(),
+export const apiKeyInsertSchema = z.object({
   openaiApiKey: z.string(),
   isValid: z.boolean().default(false),
-  lastValidated: z.string().optional(),
 });
 
-export const apiKeyInsertSchema = apiKeySchema.omit({ id: true });
-export type ApiKey = z.infer<typeof apiKeySchema>;
+// Types
+export type Agent = typeof agents.$inferSelect;
+export type AgentInsert = z.infer<typeof agentInsertSchema>;
+export type ChatThread = typeof chatThreads.$inferSelect;
+export type ChatThreadInsert = z.infer<typeof chatThreadInsertSchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;
 export type ApiKeyInsert = z.infer<typeof apiKeyInsertSchema>;
 
 // Widget Configuration Schema

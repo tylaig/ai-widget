@@ -109,11 +109,11 @@ export const runAssistant = async (threadId: string, assistantId: string): Promi
     });
     
     // Poll for completion - fixed parameter order
-    let runStatus = await client.beta.threads.runs.retrieve(threadId, run.id);
+    let runStatus = await client.beta.threads.runs.retrieve(run.id, { thread_id: threadId });
     
     while (runStatus.status === 'queued' || runStatus.status === 'in_progress') {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      runStatus = await client.beta.threads.runs.retrieve(threadId, run.id);
+      runStatus = await client.beta.threads.runs.retrieve(run.id, { thread_id: threadId });
     }
     
     if (runStatus.status === 'completed') {
